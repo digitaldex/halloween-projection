@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+*.log
+
+# Enthaelt Zugangsdaten im Klartext - nur die Vorlage settings.example.yaml
+# gehoert ins Repo.
+config/settings.yaml
+.env
+
+# Videomaterial (z. B. AtmosFX) ist meist lizenziert und viel zu gross fuers
+# Repo; idle_black.mp4 erzeugt scripts/generate_idle_clip.py.
+media/*.mp4
+media/.durations.json
+!media/.gitkeep
+
+# Videodateien generell ausschliessen, egal in welchem Ordner.
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.webm
+*.m4v

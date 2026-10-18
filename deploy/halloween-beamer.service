@@ -1,0 +1,56 @@
+[Unit]
+Description=Halloween-Fensterprojektion - MQTT-gesteuerter Beamer-Player
+Documentation=file:/home/pi/halloween/README.md
+# network-online statt network: der Client haelt zwar auch ohne Broker
+# durch (er probiert im Hintergrund weiter), aber mit WLAN ist der Start
+# ohnehin traege - so faellt der erste Verbindungsversuch nicht ins Leere.
+After=network-online.target
+Wants=network-online.target
+
+# Eine Halloween-Nacht laeuft unbeaufsichtigt: ein paar Fehlstarts in Folge
+# duerfen den Dienst nicht dauerhaft abschalten. Der Schluessel gehoert in
+# [Unit], nicht in [Service] - dort ignoriert systemd ihn kommentarlos.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+# Ohne Desktop-Session laeuft mpv direkt auf der Grafikkarte (KMS/DRM):
+# video/render fuer /dev/dri/card0, input fuer die Tastatur am TTY.
+SupplementaryGroups=video render input
+
+WorkingDirectory=/home/pi/halloween
+# Das Paket liegt wie im Repo unter src/ - daraus leitet der Client auch
+# seinen PROJECT_ROOT ab (und damit config/ und media/).
+Environment=PYTHONPATH=/home/pi/halloween/src
+Environment=PYTHONUNBUFFERED=1
+# Kein EnvironmentFile fuer das MQTT-Passwort: der Client liest es selbst
+# aus /etc/halloween/mqtt.pass (mqtt.password_file in der settings.yaml).
+# Der Umweg ueber eine Umgebungsvariable hat Sonderzeichen im Passwort
+# verbogen - systemd wendet auf EnvironmentFile eigene Quoting-Regeln an.
+
+ExecStart=/usr/bin/python3 -m halloween.client.main \
+    --settings /home/pi/halloween/config/settings.yaml
+
+# mpv braucht ein echtes TTY, um die Konsole zu uebernehmen (VT-Switch) -
+# sonst blinkt der Textcursor der Konsole durchs Videobild. tty-force holt
+# das TTY auch dann, wenn dort noch ein getty sitzt.
+TTYPath=/dev/tty1
+StandardInput=tty-force
+TTYVTDisallocate=yes
+StandardOutput=journal
+StandardError=journal
+
+# Was auch immer schiefgeht, der Beamer soll von allein zurueckkommen
+# (Ratenbegrenzung dafuer steht als StartLimitIntervalSec in [Unit]).
+Restart=always
+RestartSec=5
+
+# SIGTERM an die ganze Gruppe, damit der mpv-Kindprozess mit beendet wird
+# und die Grafikkarte wieder freigibt.
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

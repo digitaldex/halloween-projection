@@ -1,0 +1,84 @@
+# Vorlage fuer config/settings.yaml.
+#
+#   cp config/settings.example.yaml config/settings.yaml
+#
+# Das erledigt auch deploy/install_pi.sh. Die ausgefuellte settings.yaml
+# steht in .gitignore und wird nie mitversioniert.
+#
+# Jeder String-Wert kann ${UMGEBUNGSVARIABLE} oder ${VAR:-fallback} enthalten;
+# das wird beim Laden ersetzt (siehe src/halloween/core/settings.py).
+
+client:
+  # Bestimmt die Topics: halloween/<beamer_id>/cmd und .../state.
+  # Leer lassen -> der Hostname des Rechners wird genommen.
+  # Bei mehreren Beamern braucht jeder eine eigene ID.
+  beamer_id: "beamer1"
+
+mqtt:
+  host: "192.168.1.10"
+  port: 1883
+  # Leer lassen, wenn der Broker keine Anmeldung verlangt.
+  username: "halloween"
+  # Das Passwort steht in einer eigenen Datei, die nur root schreiben und
+  # nur die Gruppe des Dienstbenutzers lesen darf (chmod 640); install_pi.sh
+  # legt sie an. Sie wird byte-genau gelesen - anders als bei einer
+  # Umgebungsvariablen kommt kein systemd- oder Shell-Quoting dazwischen,
+  # das Sonderzeichen im Passwort verbiegt. Alternativ statt password_file
+  # eine der beiden Zeilen hier:
+  #   password: "geheim"                        # Klartext, nicht empfohlen
+  #   password: "${HALLOWEEN_MQTT_PASSWORD}"    # aus der Umgebung
+  password_file: "/etc/halloween/mqtt.pass"
+  base_topic: "halloween"     # ergibt halloween/<beamer_id>/cmd, halloween/<beamer_id>/state, halloween/all/cmd
+  client_id_prefix: "halloween"
+
+media:
+  # Verzeichnis mit allen Videodateien (Idle-Clip + Effektclips).
+  # Relativ = unterhalb des Projektverzeichnisses.
+  dir: "media"
+  # Laeuft in Endlosschleife, sobald der Beamer per MQTT ein
+  # {"action": "init"} bekommen hat und kein Effektclip getriggert ist.
+  # scripts/generate_idle_clip.py erzeugt ein schwarzes idle_black.mp4.
+  # Aenderung wird beim naechsten Neustart des Dienstes wirksam:
+  #   sudo systemctl restart halloween-beamer
+  idle_clip: "idle_black.mp4"
+
+  # Kurznamen fuer das MQTT-Feld "video". Links der Name, den man tippt,
+  # rechts die Datei in media/. Zusaetzlich funktionieren immer auch der
+  # volle Dateiname und der automatische Slug - die Aliase hier sind nur
+  # die bequeme Abkuerzung fuer Home-Assistant-Automationen.
+  aliases:
+    black: "idle_black.mp4"
+    # raven:   "The Raven_Pumpkin_1080p.mp4"
+    # welcome: "Welcome To Our Haunt.mp4"
+
+mpv:
+  binary: "mpv"
+
+  # Argumente fuer den mpv-Prozess. Die Basis-Flags (IPC-Server, --idle=yes,
+  # --keep-open=yes, --no-config, kein OSD ...) setzt core/mpv_process.py
+  # selbst; hier steht nur das Hardware-Spezifische. Die Werte sind fuer
+  # einen Raspberry Pi 3 ohne Desktop ermittelt (siehe docs/TECHNIK.md).
+  args:
+    # Ausgabe direkt auf die Grafikkarte per KMS/DRM - kein X11, kein Wayland.
+    - "--vo=gpu"
+    - "--gpu-context=drm"
+
+    # Software-Decoding ist auf dem Pi 3 die SCHNELLERE Variante.
+    # Gemessen mit einem 1080p30-Clip @ 9 Mbit/s, 60 s:
+    #     --hwdec=no             ->    0 verworfene Frames
+    #     --hwdec=v4l2m2m-copy   -> 1235 verworfene Frames
+    # Der v4l2m2m-Wrapper haelt auf dieser Hardware nicht mit; die vier
+    # A53-Kerne schaffen 1080p30 dagegen muehelos.
+    - "--hwdec=no"
+
+    # Eingebautes mpv-Profil: schaltet die teuren Scaler/Dither-Stufen ab.
+    # Bringt auf dem Pi 3 den Unterschied zwischen 50 und 0 Drops pro Minute.
+    - "--profile=fast"
+
+    # Ton ueber HDMI an den Beamer. Der Pi hat zwei Karten; ohne diese
+    # Angabe landet der Ton womoeglich auf der 3,5-mm-Klinke.
+    # Liste der Namen: mpv --audio-device=help
+    - "--audio-device=alsa/plughw:CARD=vc4hdmi,DEV=0"
+    # Fehlt das Geraet (Beamer aus), soll mpv trotzdem das Bild zeigen
+    # statt die Wiedergabe abzubrechen.
+    - "--audio-fallback-to-null=yes"

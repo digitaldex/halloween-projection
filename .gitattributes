@@ -1,0 +1,5 @@
+* text=auto
+
+# Laufen auf dem Raspberry Pi - muessen LF behalten, auch bei Checkout unter Windows.
+*.sh      text eol=lf
+*.service text eol=lf
